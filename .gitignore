@@ -2,4 +2,6 @@
 /hal_libs
 /wpiutil_libs
 /distutils_renamed.py
+/*.o
+/*.so
 **/__pycache__
