@@ -1,0 +1,5 @@
+/hal_headers
+/hal_libs
+/wpiutil_libs
+/distutils_renamed.py
+**/__pycache__

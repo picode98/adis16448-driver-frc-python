@@ -4,3 +4,6 @@
 [submodule "robotpy-wpilib"]
 	path = robotpy-wpilib
 	url = https://github.com/robotpy/robotpy-wpilib.git
+[submodule "allwpilib"]
+	path = allwpilib
+	url = https://github.com/wpilibsuite/allwpilib.git
