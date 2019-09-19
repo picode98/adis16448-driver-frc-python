@@ -105,7 +105,7 @@ using namespace frc;
 
 ADIS16448_IMU::ADIS16448_IMU() : ADIS16448_IMU(kZ, kComplementary, HAL_SPIPort::HAL_SPI_kMXP) {}
 
-ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIPort port) : IMUSPIPort(port) /*: m_yaw_axis(yaw_axis), m_algorithm(algorithm), */ {
+ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIPort port) : IMUSPIPort(port), m_yaw_axis(yaw_axis), m_algorithm(algorithm) {
 
   // // Force the IMU reset pin to toggle on startup (doesn't require DS enable)
   // // Relies on the RIO hardware by default configuring an output as low
@@ -324,11 +324,11 @@ void ADIS16448_IMU::Acquire() {
       }
 
 		  // DEBUG: Plot sub-array data in terminal
- 		  std::cout << ToUShort(&data_subset[0]) << "," << ToUShort(&data_subset[2]) << "," << ToUShort(&data_subset[4]) <<
+ 		  /* std::cout << ToUShort(&data_subset[0]) << "," << ToUShort(&data_subset[2]) << "," << ToUShort(&data_subset[4]) <<
 		  "," << ToUShort(&data_subset[6]) << "," << ToUShort(&data_subset[8]) << "," << ToUShort(&data_subset[10]) << "," <<
 		  ToUShort(&data_subset[12]) << "," << ToUShort(&data_subset[14]) << "," << ToUShort(&data_subset[16]) << "," <<
 		  ToUShort(&data_subset[18]) << "," << ToUShort(&data_subset[20]) << "," << ToUShort(&data_subset[22]) << "," <<
-		  ToUShort(&data_subset[24]) << "," << ToUShort(&data_subset[26]) << std::endl;
+		  ToUShort(&data_subset[24]) << "," << ToUShort(&data_subset[26]) << ' '; */
 
       // Calculate CRC-16 on each data packet
 		  uint16_t calc_crc = 0xFFFF; // Starting word
