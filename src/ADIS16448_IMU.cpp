@@ -10,23 +10,20 @@
 #include <string>
 #include <iostream>
 #include <cmath>
-#include <thread>
 
-// #include <frc/DigitalInput.h>
-// #include <frc/DigitalSource.h>
-// #include <frc/DriverStation.h>
-// #include <frc/DigitalOutput.h>
-// #include <frc/DigitalSource.h>
-// #include <frc/DigitalInput.h>
-// #include <frc/SPI.h>
-// #include <frc/ErrorBase.h>
+#include <frc/DigitalInput.h>
+#include <frc/DigitalSource.h>
+#include <frc/DriverStation.h>
+#include <frc/DigitalOutput.h>
+#include <frc/DigitalSource.h>
+#include <frc/DigitalInput.h>
+#include <frc/SPI.h>
+#include <frc/ErrorBase.h>
 #include <adi/ADIS16448_IMU.h>
 // #include <frc/smartdashboard/SendableBuilder.h>
-// #include <frc/Timer.h>
-// #include <frc/WPIErrors.h>
+#include <frc/Timer.h>
+#include <frc/WPIErrors.h>
 #include <hal/HAL.h>
-#include <hal/DIO.h>
-#include <hal/SPI.h>
 
 // Not always defined in cmath (not part of standard)
 #ifndef M_PI
@@ -96,55 +93,38 @@ static inline int16_t ToShort(const uint8_t* buf) {
   return (int16_t)(((uint16_t)(buf[0]) << 8) | buf[1]);
 }
 
-static inline void Wait(double seconds) {
-  if (seconds < 0.0) return;
-  std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
-}
-
 using namespace frc;
 
-ADIS16448_IMU::ADIS16448_IMU() : ADIS16448_IMU(kZ, kComplementary, HAL_SPIPort::HAL_SPI_kMXP) {}
+ADIS16448_IMU::ADIS16448_IMU() : ADIS16448_IMU(kZ, kComplementary, SPI::Port::kMXP) {}
 
-ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIPort port) : IMUSPIPort(port), m_yaw_axis(yaw_axis), m_algorithm(algorithm) {
+ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, SPI::Port port) : m_yaw_axis(yaw_axis), m_algorithm(algorithm), m_spi(port){
 
-  // // Force the IMU reset pin to toggle on startup (doesn't require DS enable)
-  // // Relies on the RIO hardware by default configuring an output as low
-  // // and configuring an input as high Z. The 10k pull-up resistor internal to the 
-  // // IMU then forces the reset line high for normal operation. 
-  // DigitalOutput *m_reset_out = new DigitalOutput(18);  // Drive MXP DIO8 low
-  // Wait(0.01);  // Wait 10ms
-  // delete m_reset_out;
-  // DigitalInput *m_reset_in = new DigitalInput(18);  // Set MXP DIO8 high
-  // Wait(0.5);  // Wait 500ms for reset to complete
-  int32_t status = 0;
-  HAL_PortHandle resetHandle = HAL_GetPort(18);
-  m_reset = HAL_InitializeDIOPort(resetHandle, false, &status);
-  Wait(0.01);
-  HAL_SetDIODirection(m_reset, true, &status);
-  Wait(0.5);
-  
-  HAL_InitializeSPI(IMUSPIPort, &status);
-  HAL_SetSPISpeed(IMUSPIPort, 1000000);
-  HAL_SetSPIOpts(IMUSPIPort, true, true, true);
-  HAL_SetSPIChipSelectActiveLow(IMUSPIPort, &status);
-  // // Set general SPI settings
-  // m_spi.SetClockRate(1000000);
-  // m_spi.SetMSBFirst();
-  // m_spi.SetSampleDataOnTrailingEdge();
-  // m_spi.SetClockActiveLow();
-  // m_spi.SetChipSelectActiveLow();
+  // Force the IMU reset pin to toggle on startup (doesn't require DS enable)
+  // Relies on the RIO hardware by default configuring an output as low
+  // and configuring an input as high Z. The 10k pull-up resistor internal to the 
+  // IMU then forces the reset line high for normal operation. 
+  DigitalOutput *m_reset_out = new DigitalOutput(18);  // Drive MXP DIO8 low
+  Wait(0.01);  // Wait 10ms
+  delete m_reset_out;
+  DigitalInput *m_reset_in = new DigitalInput(18);  // Set MXP DIO8 high
+  Wait(0.5);  // Wait 500ms for reset to complete
+
+  // Set general SPI settings
+  m_spi.SetClockRate(1000000);
+  m_spi.SetMSBFirst();
+  m_spi.SetSampleDataOnTrailingEdge();
+  m_spi.SetClockActiveLow();
+  m_spi.SetChipSelectActiveLow();
 
   ReadRegister(kRegPROD_ID); // Dummy read
 
   // Validate the product ID
   if (ReadRegister(kRegPROD_ID) != 16448) {
-    // DriverStation::ReportError("Could not find ADIS16448!");
-	std::cout << "Could not find ADIS16448!" << std::endl;
+    DriverStation::ReportError("Could not find ADIS16448!");
     return;
   }
   else {
-    // DriverStation::ReportWarning("ADIS16448 IMU Detected. Starting calibration.");
-	std::cout << "ADIS16448 IMU Detected. Starting calibration." << std::endl;
+    DriverStation::ReportWarning("ADIS16448 IMU Detected. Starting calibration.");
   }
 
   // Set IMU internal decimation to 204.8 SPS
@@ -157,19 +137,14 @@ ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIP
   WriteRegister(kRegSENS_AVG, 0x0402);
 
   // Configure interrupt on MXP DIO0
-  // DigitalInput *m_interrupt = new DigitalInput(10);
-  HAL_PortHandle interruptHandle = HAL_GetPort(10);
-  m_interrupt = HAL_InitializeDIOPort(interruptHandle, true, &status);
+  DigitalInput *m_interrupt = new DigitalInput(10);
 
   // Configure DMA SPI
-  // m_spi.InitAuto(8200);
-  // m_spi.SetAutoTransmitData(kGLOB_CMD,27);
-  HAL_InitSPIAuto(IMUSPIPort, 8200, &status);
-  HAL_SetSPIAutoTransmitData(IMUSPIPort, &kGLOB_CMD, 1, 27, &status);
+  m_spi.InitAuto(8200);
+  m_spi.SetAutoTransmitData(kGLOB_CMD,27);
 
   // Kick off DMA SPI (Note: Device configration impossible after SPI DMA is activated)
-  // m_spi.StartAutoTrigger(*m_interrupt,true,false);
-  HAL_StartSPIAutoTrigger(IMUSPIPort, m_interrupt, HAL_Trigger_kInWindow, true, false, &status);
+  m_spi.StartAutoTrigger(*m_interrupt,true,false);
 
   // Start acquisition and calculation threads
   m_freed = false;
@@ -183,12 +158,11 @@ ADIS16448_IMU::ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIP
   Reset();
   
   // Let the user know the IMU was initiallized successfully
-  // DriverStation::ReportWarning("ADIS16448 IMU Successfully Initialized!");
-  std::cout << "ADIS16448 IMU Successfully Initialized!" << std::endl;
+  DriverStation::ReportWarning("ADIS16448 IMU Successfully Initialized!");
 
   // Report usage and post data to DS
-  // HAL_Report(HALUsageReporting::kResourceType_ADIS16448, 0);
-  // SetName("ADIS16448", 0);
+  HAL_Report(HALUsageReporting::kResourceType_ADIS16448, 0);
+  SetName("ADIS16448", 0);
 }
 
 // Adjust yaw axis for AHRS calculations
@@ -238,10 +212,8 @@ uint16_t ADIS16448_IMU::ReadRegister(uint8_t reg) {
   buf[0] = reg & 0x7f;
   buf[1] = 0;
 
-  HAL_WriteSPI(IMUSPIPort, buf, 2);
-  HAL_ReadSPI(IMUSPIPort, buf, 2);
-  // m_spi.Write(buf, 2);
-  // m_spi.Read(false, buf, 2);
+  m_spi.Write(buf, 2);
+  m_spi.Read(false, buf, 2);
 
   return ToUShort(buf);
 }
@@ -250,12 +222,10 @@ void ADIS16448_IMU::WriteRegister(uint8_t reg, uint16_t val) {
   uint8_t buf[2];
   buf[0] = 0x80 | reg;
   buf[1] = val & 0xff;
-  HAL_WriteSPI(IMUSPIPort, buf, 2);
-  // m_spi.Write(buf, 2);
+  m_spi.Write(buf, 2);
   buf[0] = 0x81 | reg;
   buf[1] = val >> 8;
-  HAL_WriteSPI(IMUSPIPort, buf, 2);
-  // m_spi.Write(buf, 2);
+  m_spi.Write(buf, 2);
 }
 
 void ADIS16448_IMU::Reset() {
@@ -266,9 +236,7 @@ void ADIS16448_IMU::Reset() {
 }
 
 ADIS16448_IMU::~ADIS16448_IMU() {
-  int32_t status = 0;
-  HAL_FreeSPIAuto(IMUSPIPort, &status);
-  HAL_CloseSPI(IMUSPIPort);
+  m_spi.StopAuto();
   m_freed = true;
   m_samples_not_empty.notify_all();
   if (m_acquire_task.joinable()) m_acquire_task.join();
@@ -290,32 +258,20 @@ void ADIS16448_IMU::Acquire() {
 	  // Waiting for the buffer to fill...
 	  Wait(.020); // A delay greater than 50ms could potentially overflow the local buffer (depends on sensor sample rate)
     
-    // std::fill_n(buffer, 2000, 0);  // Clear buffer
-	  // // data_count = m_spi.ReadAutoReceivedData(buffer,0,0); // Read number of bytes currently stored in the buffer
-	  // // m_spi.ReadAutoReceivedData(buffer,data_to_read,0); // Read data from DMA buffer
-	// int32_t read_status = 0;
-	// data_count = HAL_ReadSPIAutoReceivedData(IMUSPIPort, buffer, 2000, 0.0, &read_status);
-	// data_remainder = data_count % 29; // Check if frame is incomplete
-    // data_to_read = data_count - data_remainder;  // Remove incomplete data from read count
-	
-	int32_t read_status = 0;
-	
-	std::fill_n(buffer, 2000, 0);  // Clear buffer
-    data_count = HAL_ReadSPIAutoReceivedData(IMUSPIPort,buffer,0,0,&read_status); // Read number of bytes currently stored in the buffer
-    data_remainder = data_count % 29; // Check if frame is incomplete
+    std::fill_n(buffer, 2000, 0);  // Clear buffer
+	  data_count = m_spi.ReadAutoReceivedData(buffer,0,0); // Read number of bytes currently stored in the buffer
+	  data_remainder = data_count % 29; // Check if frame is incomplete
     data_to_read = data_count - data_remainder;  // Remove incomplete data from read count
-    HAL_ReadSPIAutoReceivedData(IMUSPIPort,buffer,data_to_read,0,&read_status); // Read data from DMA buffer
-	
-	/*
+	  m_spi.ReadAutoReceivedData(buffer,data_to_read,0); // Read data from DMA buffer
+
     // DEBUG: Print buffer size and contents to terminal
-    std::cout << "Start - " << data_count << "," << data_remainder << "," << data_to_read << std::endl;
+    /*std::cout << "Start - " << data_count << "," << data_remainder << "," << data_to_read << "," << iq << std::endl;
     for (int m = 0; m < data_to_read - 1; m++ )
     {
       std::cout << buffer[m] << ",";
     }
     std::cout << " " << std::endl;
-    std::cout << "End" << std::endl;
-	*/
+    std::cout << "End" << std::endl;*/ 
 
 	  for (int i = 0; i < data_to_read; i += 29) { // Process each set of 28 ints + timestamp (29 total)
 
@@ -324,11 +280,11 @@ void ADIS16448_IMU::Acquire() {
       }
 
 		  // DEBUG: Plot sub-array data in terminal
- 		  /* std::cout << ToUShort(&data_subset[0]) << "," << ToUShort(&data_subset[2]) << "," << ToUShort(&data_subset[4]) <<
+ 		  /*std::cout << ToUShort(&data_subset[0]) << "," << ToUShort(&data_subset[2]) << "," << ToUShort(&data_subset[4]) <<
 		  "," << ToUShort(&data_subset[6]) << "," << ToUShort(&data_subset[8]) << "," << ToUShort(&data_subset[10]) << "," <<
 		  ToUShort(&data_subset[12]) << "," << ToUShort(&data_subset[14]) << "," << ToUShort(&data_subset[16]) << "," <<
 		  ToUShort(&data_subset[18]) << "," << ToUShort(&data_subset[20]) << "," << ToUShort(&data_subset[22]) << "," <<
-		  ToUShort(&data_subset[24]) << "," << ToUShort(&data_subset[26]) << ' '; */
+		  ToUShort(&data_subset[24]) << "," << ToUShort(&data_subset[26]) << std::endl; */
 
       // Calculate CRC-16 on each data packet
 		  uint16_t calc_crc = 0xFFFF; // Starting word
@@ -1047,38 +1003,40 @@ void ADIS16448_IMU::SetTiltCompYaw(bool enabled) {
   m_tilt_comp_yaw = enabled;
 }
 
-// void ADIS16448_IMU::InitSendable(SendableBuilder& builder) {
-//   builder.SetSmartDashboardType("ADIS16448 IMU");
-//   auto value = builder.GetEntry("Value").GetHandle();
-//   auto pitch = builder.GetEntry("Pitch").GetHandle();
-//   auto roll = builder.GetEntry("Roll").GetHandle();
-//   auto yaw = builder.GetEntry("Yaw").GetHandle();
-//   auto gyroX = builder.GetEntry("GyroX").GetHandle();
-//   auto gyroY = builder.GetEntry("GyroY").GetHandle();
-//   auto gyroZ = builder.GetEntry("GyroZ").GetHandle();
-//   auto accelX = builder.GetEntry("AccelX").GetHandle();
-//   auto accelY = builder.GetEntry("AccelY").GetHandle();
-//   auto accelZ = builder.GetEntry("AccelZ").GetHandle();
-//   auto angleX = builder.GetEntry("AngleX").GetHandle();
-//   auto angleY = builder.GetEntry("AngleY").GetHandle();
-//   auto angleZ = builder.GetEntry("AngleZ").GetHandle();
-//   auto dt = builder.GetEntry("dt").GetHandle();
-//   auto status = builder.GetEntry("Status").GetHandle();
-//   builder.SetUpdateTable([=]() {
-// 	nt::NetworkTableEntry(value).SetDouble(GetAngle());
-// 	nt::NetworkTableEntry(pitch).SetDouble(GetPitch());
-// 	nt::NetworkTableEntry(roll).SetDouble(GetRoll());
-// 	nt::NetworkTableEntry(yaw).SetDouble(GetYaw());
-// 	nt::NetworkTableEntry(gyroX).SetDouble(GetRateX());
-// 	nt::NetworkTableEntry(gyroY).SetDouble(GetRateY());
-// 	nt::NetworkTableEntry(gyroZ).SetDouble(GetRateZ());
-// 	nt::NetworkTableEntry(accelX).SetDouble(GetAccelX());
-// 	nt::NetworkTableEntry(accelY).SetDouble(GetAccelY());
-// 	nt::NetworkTableEntry(accelZ).SetDouble(GetAccelZ());
-// 	nt::NetworkTableEntry(angleX).SetDouble(GetAngleX());
-// 	nt::NetworkTableEntry(angleY).SetDouble(GetAngleY());
-// 	nt::NetworkTableEntry(angleZ).SetDouble(GetAngleZ());
-//   nt::NetworkTableEntry(dt).SetDouble(Getdt());
-//   nt::NetworkTableEntry(status).SetDouble(GetStatus());
-//   });
-// }
+/*
+void ADIS16448_IMU::InitSendable(SendableBuilder& builder) {
+  builder.SetSmartDashboardType("ADIS16448 IMU");
+  auto value = builder.GetEntry("Value").GetHandle();
+  auto pitch = builder.GetEntry("Pitch").GetHandle();
+  auto roll = builder.GetEntry("Roll").GetHandle();
+  auto yaw = builder.GetEntry("Yaw").GetHandle();
+  auto gyroX = builder.GetEntry("GyroX").GetHandle();
+  auto gyroY = builder.GetEntry("GyroY").GetHandle();
+  auto gyroZ = builder.GetEntry("GyroZ").GetHandle();
+  auto accelX = builder.GetEntry("AccelX").GetHandle();
+  auto accelY = builder.GetEntry("AccelY").GetHandle();
+  auto accelZ = builder.GetEntry("AccelZ").GetHandle();
+  auto angleX = builder.GetEntry("AngleX").GetHandle();
+  auto angleY = builder.GetEntry("AngleY").GetHandle();
+  auto angleZ = builder.GetEntry("AngleZ").GetHandle();
+  auto dt = builder.GetEntry("dt").GetHandle();
+  auto status = builder.GetEntry("Status").GetHandle();
+  builder.SetUpdateTable([=]() {
+	nt::NetworkTableEntry(value).SetDouble(GetAngle());
+	nt::NetworkTableEntry(pitch).SetDouble(GetPitch());
+	nt::NetworkTableEntry(roll).SetDouble(GetRoll());
+	nt::NetworkTableEntry(yaw).SetDouble(GetYaw());
+	nt::NetworkTableEntry(gyroX).SetDouble(GetRateX());
+	nt::NetworkTableEntry(gyroY).SetDouble(GetRateY());
+	nt::NetworkTableEntry(gyroZ).SetDouble(GetRateZ());
+	nt::NetworkTableEntry(accelX).SetDouble(GetAccelX());
+	nt::NetworkTableEntry(accelY).SetDouble(GetAccelY());
+	nt::NetworkTableEntry(accelZ).SetDouble(GetAccelZ());
+	nt::NetworkTableEntry(angleX).SetDouble(GetAngleX());
+	nt::NetworkTableEntry(angleY).SetDouble(GetAngleY());
+	nt::NetworkTableEntry(angleZ).SetDouble(GetAngleZ());
+  nt::NetworkTableEntry(dt).SetDouble(Getdt());
+  nt::NetworkTableEntry(status).SetDouble(GetStatus());
+  });
+}
+*/

@@ -14,22 +14,14 @@
 #include <memory>
 #include <thread>
 
-// #include <frc/DigitalOutput.h>
-// #include <frc/DigitalSource.h>
-// #include <frc/DigitalInput.h>
-// #include <frc/GyroBase.h>
-// #include <frc/SPI.h>
+#include <frc/DigitalOutput.h>
+#include <frc/DigitalSource.h>
+#include <frc/DigitalInput.h>
+#include <frc/GyroBase.h>
+#include <frc/SPI.h>
 // #include <frc/smartdashboard/SendableBuilder.h>
 #include <wpi/mutex.h>
 #include <wpi/condition_variable.h>
-#include <hal/HAL.h>
-#include <hal/SPITypes.h>
-
-#ifdef IMU_PY_MODULE
-	#define IMU_CLASS_OVERRIDE(fn) fn
-#else
-	#define IMU_CLASS_OVERRIDE(fn) fn override
-#endif
 
 namespace frc {
 
@@ -46,19 +38,16 @@ namespace frc {
  * This class is for the ADIS16448 IMU connected via the SPI port available on the RoboRIO MXP port.
  */
 
-class ADIS16448_IMU
-#ifndef IMU_PY_MODULE
-: public GyroBase
-#endif
-{
+class ADIS16448_IMU : public GyroBase {
   public:
-     enum AHRSAlgorithm { kComplementary, kMadgwick };
-     enum IMUAxis { kX, kY, kZ };
+
+    enum AHRSAlgorithm { kComplementary, kMadgwick };
+    enum IMUAxis { kX, kY, kZ };
 
     /**
     * IMU constructor on onboard MXP CS0, Z-up orientation, and complementary AHRS computation.
     */
-     ADIS16448_IMU();
+    ADIS16448_IMU();
 
     /**
      * IMU constructor on the specified MXP port and orientation.
@@ -67,7 +56,7 @@ class ADIS16448_IMU
      * @param algorithm The AHRS algorithm to use. Valid options are kComplementary and kMadgwick
      * @param port The SPI port where the IMU is connected.
      */
-     explicit ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, HAL_SPIPort port);
+    explicit ADIS16448_IMU(IMUAxis yaw_axis, AHRSAlgorithm algorithm, SPI::Port port);
 
     ~ADIS16448_IMU();
 
@@ -88,7 +77,7 @@ class ADIS16448_IMU
      * 
      * The calibration routine can be triggered by the user during runtime.
      */
-    void IMU_CLASS_OVERRIDE(Calibrate());
+    void Calibrate() override;
 
     /**
      * Reset the gyro.
@@ -97,7 +86,7 @@ class ADIS16448_IMU
      * there is significant drift in the gyro and it needs to be recalibrated
      * after running.
      */
-    void IMU_CLASS_OVERRIDE(Reset());
+    void Reset() override;
 
     /**
      * Return the actual angle in degrees that the robot is currently facing.
@@ -112,7 +101,7 @@ class ADIS16448_IMU
      * @return the current heading of the robot in degrees. This heading is based
      *         on integration of the returned rate from the gyro.
      */
-    double IMU_CLASS_OVERRIDE(GetAngle() const);
+    double GetAngle() const override;
 
     /**
      * Return the rate of rotation of the yaw_axis gyro.
@@ -121,7 +110,7 @@ class ADIS16448_IMU
      *
      * @return the current rate in degrees per second
      */
-    double IMU_CLASS_OVERRIDE(GetRate() const);
+    double GetRate() const override;
     
     /**
      * Return the IMU X-axis integrated angle in degrees.
@@ -342,9 +331,7 @@ class ADIS16448_IMU
      */
     void SetTiltCompYaw(bool enabled);
 
-#ifndef IMU_PY_MODULE
-    void IMU_CLASS_OVERRIDE(InitSendable(SendableBuilder& builder));
-#endif
+    // void InitSendable(SendableBuilder& builder) override;
 
 private:
   // Sample from the IMU
@@ -433,15 +420,10 @@ private:
 
   std::atomic_bool m_freed;
 
-  const HAL_SPIPort IMUSPIPort;
-  // SPI m_spi;
-  // std::unique_ptr<frc::DigitalOutput> m_reset_out;
-  // std::unique_ptr<frc::DigitalInput> m_reset_in;
-  // std::unique_ptr<frc::DigitalSource> m_interrupt;
-  HAL_DigitalHandle m_reset,
-	m_interrupt;
-  // std::unique_ptr<frc::DigitalInput> m_reset_in;
-  // std::unique_ptr<frc::DigitalSource> m_interrupt;
+  SPI m_spi;
+  std::unique_ptr<frc::DigitalOutput> m_reset_out;
+  std::unique_ptr<frc::DigitalInput> m_reset_in;
+  std::unique_ptr<frc::DigitalSource> m_interrupt;
 
   std::thread m_acquire_task;
   std::thread m_calculate_task;
